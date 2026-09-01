@@ -39,6 +39,7 @@ h2 { margin-bottom: 10px; }
     justify-content: center;
     gap: 15px;
     flex-wrap: wrap;
+    margin-bottom: 15px;
 }
 
 .card-slot {
@@ -112,6 +113,15 @@ button {
 }
 button:active { transform: scale(0.95); }
 button:hover { background-color: var(--btn-hover); }
+
+/* NEW: Reroll Button Styling */
+#reroll-btn {
+    background-color: #8be9fd;
+    font-size: 1.1rem;
+    padding: 10px 25px;
+    margin-top: 5px;
+}
+#reroll-btn:hover { background-color: #6edbf0; }
 #next-round-btn { background-color: var(--accent-color); margin-top: 15px; }
 
 #battle-log {

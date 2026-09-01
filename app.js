@@ -2,9 +2,9 @@
 let playerStats = { coins: 10, lives: 5, round: 1 };
 let shopSlots = [null, null, null];
 let teamSlots = [null, null, null];
-let benchSlots = [null, null, null, null, null]; // New Inventory Bench
+let benchSlots = [null, null, null, null, null];
 let enemySlots = [null, null, null];
-let draggedItem = null; // { arrayName: 'team' | 'bench', index: 0 }
+let draggedItem = null;
 
 const unitDatabase = [
     { id: "knight", name: "Knight", icon: "🛡️", hp: 5, dmg: 2, cost: 3 },
@@ -24,12 +24,21 @@ function rollShop() {
     renderShop();
 }
 
+function rerollShop() {
+    if (playerStats.coins >= 1) {
+        playerStats.coins -= 1;
+        rollShop();
+        updateStatsUI();
+    } else {
+        alert("Not enough coins to reroll!");
+    }
+}
+
 function buyUnit(shopIndex) {
     const unit = shopSlots[shopIndex];
     if (!unit) return;
     if (playerStats.coins < unit.cost) { alert("Not enough coins!"); return; }
 
-    // Prioritize bench first, then team
     let emptyBenchIndex = benchSlots.findIndex(s => s === null);
     let emptyTeamIndex = teamSlots.findIndex(s => s === null);
 
@@ -45,15 +54,13 @@ function buyUnit(shopIndex) {
     playerStats.coins -= unit.cost;
     shopSlots[shopIndex] = null;
 
-    checkAndMerge(); // TFT Auto-Merge System
+    checkAndMerge();
     updateStatsUI();
     renderShop();
     renderAllDraft();
 }
 
-// --- TFT AUTO-MERGE SYSTEM ---
 function checkAndMerge() {
-    // Gather all active units across both the team and bench arrays
     let allActiveSlots = [
         ...teamSlots.map((u, i) => ({ unit: u, loc: 'team', index: i })),
         ...benchSlots.map((u, i) => ({ unit: u, loc: 'bench', index: i }))
@@ -61,7 +68,6 @@ function checkAndMerge() {
 
     let didMerge = false;
 
-    // Check for 3 of the same unit at Level 1, then Level 2
     for (let level = 1; level <= 2; level++) {
         let groups = {};
         allActiveSlots.filter(s => s.unit.level === level).forEach(s => {
@@ -71,22 +77,17 @@ function checkAndMerge() {
 
         for (let id in groups) {
             if (groups[id].length >= 3) {
-                // We found 3 identical units!
                 let toMerge = groups[id].slice(0, 3);
-
-                // Keep the upgraded unit on the board if possible, otherwise on the bench
                 let targetLoc = toMerge.find(s => s.loc === 'team') || toMerge[0];
 
-                // Delete the three base units
                 toMerge.forEach(s => {
                     if (s.loc === 'team') teamSlots[s.index] = null;
                     if (s.loc === 'bench') benchSlots[s.index] = null;
                 });
 
-                // Create the newly upgraded Level 2 or Level 3 unit
                 let baseData = unitDatabase.find(u => u.id === id);
                 let newLevel = level + 1;
-                let statMult = newLevel === 2 ? 2 : 4; // Lvl 2 = 2x stats, Lvl 3 = 4x stats
+                let statMult = newLevel === 2 ? 2 : 4;
 
                 let upgradedUnit = {
                     ...baseData,
@@ -95,17 +96,15 @@ function checkAndMerge() {
                     dmg: baseData.dmg * statMult
                 };
 
-                // Place the newly upgraded unit back into the arrays
                 if (targetLoc.loc === 'team') teamSlots[targetLoc.index] = upgradedUnit;
                 if (targetLoc.loc === 'bench') benchSlots[targetLoc.index] = upgradedUnit;
 
                 didMerge = true;
-                break; // Stop and re-run to prevent index collision
+                break;
             }
         }
     }
 
-    // If a merge happened, run it again just in case we accidentally created three Level 2s!
     if (didMerge) {
         checkAndMerge();
     }
@@ -134,7 +133,6 @@ function handleDropSwap(e, dropArrayName, dropIndex) {
         let sourceArray = draggedItem.arrayName === 'team' ? teamSlots : benchSlots;
         let targetArray = dropArrayName === 'team' ? teamSlots : benchSlots;
 
-        // Swap them
         let sourceUnit = sourceArray[draggedItem.index];
         let targetUnit = targetArray[dropIndex];
 
@@ -154,7 +152,6 @@ function handleDropSell(e) {
 
         if (unitToSell) {
             sourceArray[draggedItem.index] = null;
-            // Refunds: Lvl 1 = 1 coin, Lvl 2 = 3 coins, Lvl 3 = 9 coins
             playerStats.coins += Math.pow(3, unitToSell.level - 1);
             updateStatsUI();
             renderAllDraft();
@@ -229,14 +226,19 @@ async function startBattle() {
     document.getElementById("next-round-btn").style.display = "none";
     document.getElementById("battle-log").innerHTML = `Round ${playerStats.round} begins!`;
 
-    // Enemy Scaling Logic
-    let enemyLevel = 1;
-    if (playerStats.round >= 3) enemyLevel = 2;
-    if (playerStats.round >= 6) enemyLevel = 3;
-    let statMult = enemyLevel === 2 ? 2 : (enemyLevel === 3 ? 4 : 1);
-
+    // UPDATED SCALING: Gradual introduction of higher level enemies
     for (let i = 0; i < 3; i++) {
         let baseUnit = unitDatabase[getRandomInt(unitDatabase.length)];
+        let enemyLevel = 1;
+
+        if (playerStats.round >= 3 && i === 0) enemyLevel = 2; // Introduce 1 Lvl 2 on Round 3
+        if (playerStats.round >= 4 && i <= 1) enemyLevel = 2;  // Two Lvl 2s on Round 4
+        if (playerStats.round >= 5) enemyLevel = 2;            // All Lvl 2 on Round 5
+        if (playerStats.round >= 7 && i === 0) enemyLevel = 3; // Introduce 1 Lvl 3 on Round 7
+        if (playerStats.round >= 8) enemyLevel = 3;            // Hardcore late game
+
+        let statMult = enemyLevel === 2 ? 2 : (enemyLevel === 3 ? 4 : 1);
+
         enemySlots[i] = {
             ...baseUnit,
             level: enemyLevel,
@@ -251,17 +253,13 @@ async function startBattle() {
     renderArena(combatTeam, combatEnemies);
     await sleep(1000);
 
-    // FRONT LINE LOGIC: 
-    // Player Array goes [0], [1], [2]. Visually, [2] touches the VS badge.
-    // Enemy Array goes [0], [1], [2]. Visually, [0] touches the VS badge.
-    let pIndex = 2; // Right-most player slot
-    let eIndex = 0; // Left-most enemy slot
+    let pIndex = 2;
+    let eIndex = 0;
 
     while (pIndex >= 0 && eIndex < 3) {
         let pUnit = combatTeam[pIndex];
         let eUnit = combatEnemies[eIndex];
 
-        // Move inward if a slot is dead or empty
         if (!pUnit || pUnit.hp <= 0) { pIndex--; continue; }
         if (!eUnit || eUnit.hp <= 0) { eIndex++; continue; }
 
@@ -305,7 +303,7 @@ async function startBattle() {
 
 function returnToDraft() {
     playerStats.round += 1;
-    playerStats.coins += 2;
+    playerStats.coins += 5; // UPDATED: More base income per round
     updateStatsUI();
     document.getElementById("battle-phase").style.display = "none";
     document.getElementById("draft-phase").style.display = "block";
@@ -347,6 +345,7 @@ function updateStatsUI() {
     document.getElementById("round-display").innerText = playerStats.round;
 }
 
+document.getElementById("reroll-btn").onclick = rerollShop;
 document.getElementById("battle-btn").onclick = startBattle;
 document.getElementById("next-round-btn").onclick = returnToDraft;
 updateStatsUI();
