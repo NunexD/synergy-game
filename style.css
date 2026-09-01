@@ -32,7 +32,7 @@ header {
 }
 
 section {
-    margin-bottom: 40px;
+    margin-bottom: 30px;
 }
 
 .slot-container {
@@ -59,9 +59,16 @@ section {
     user-select: none;
 }
 
-.card-slot:hover {
+/* Shop Hover */
+#shop-container .card-slot:not(.empty):hover {
     transform: translateY(-5px);
     border-color: var(--accent-color);
+}
+
+/* Team Hover (For Selling) */
+#team-container .card-slot:not(.empty):hover {
+    transform: translateY(-5px);
+    border-color: #ff5555;
 }
 
 .card-slot.empty {
@@ -97,6 +104,12 @@ section {
     background-color: var(--btn-hover);
 }
 
+#battle-btn:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+    transform: none;
+}
+
 #battle-log {
     background-color: var(--card-bg);
     border: 1px solid var(--card-border);
@@ -105,6 +118,38 @@ section {
     padding: 15px;
     border-radius: 8px;
     min-height: 50px;
-    font-family: monospace;
+    font-size: 1.1rem;
     color: #bd93f9;
+}
+
+/* --- COMBAT ANIMATIONS --- */
+.anim-attack {
+    animation: lunge 0.3s ease-in-out;
+    z-index: 10;
+}
+
+@keyframes lunge {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-25px) scale(1.1); }
+    100% { transform: translateY(0); }
+}
+
+.anim-damage {
+    animation: shake 0.4s ease-in-out;
+    border-color: #ff5555 !important;
+    background-color: #3a1e1e !important;
+}
+
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0); }
+}
+
+.anim-dead {
+    opacity: 0.3;
+    filter: grayscale(100%);
+    border-color: #333 !important;
 }
