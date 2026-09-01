@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Synergy Draft Game</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Pull in the PeerJS Library for Multiplayer -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -17,23 +16,20 @@
 </header>
 
 <main>
-    <!-- ========================================== -->
-    <!-- MAIN MENU PHASE -->
-    <!-- ========================================== -->
+    <!-- MAIN MENU -->
     <div id="main-menu">
         <h2>Welcome to the Arena</h2>
 
         <div class="menu-box">
             <h3>Singleplayer</h3>
-            <button onclick="startSingleplayer()">Play vs AI</button>
+            <button onclick="startNewSingleplayer()">Play vs AI</button>
         </div>
 
         <div class="menu-box">
-            <h3>Multiplayer (Play with a Friend)</h3>
+            <h3>Multiplayer</h3>
             <button onclick="hostGame()" style="background-color: #8be9fd; color: #1e1e24;">Host Game</button>
             <div id="host-info" style="display: none; margin: 15px 0;">
                 Your Room Code: <strong id="room-code" style="font-size: 1.5rem; color: #ff79c6;">Loading...</strong>
-                <p style="font-size: 0.9rem; color: #888;">Send this code to your friend!</p>
             </div>
 
             <hr style="border-color: #44475a; margin: 20px 0;">
@@ -44,36 +40,33 @@
         </div>
     </div>
 
-    <!-- ========================================== -->
     <!-- DRAFT PHASE -->
-    <!-- ========================================== -->
     <div id="draft-phase" style="display: none;">
         <section id="shop-section">
-            <h2>The Shop (Click to Buy)</h2>
+            <h2>The Shop</h2>
             <div id="shop-container" class="slot-container"></div>
             <button id="reroll-btn">🎲 Reroll Shop (🪙1)</button>
         </section>
 
         <section id="management-section">
-            <h2>Your Team (Drag to rearrange)</h2>
+            <h2>Your Team</h2>
             <p style="font-size: 0.9rem; color: #888; margin-top: -10px;">The RIGHT-MOST unit is your Frontline!</p>
             <div id="team-container" class="slot-container"></div>
 
             <h2>Your Bench</h2>
             <div id="bench-container" class="slot-container"></div>
 
-            <div id="sell-zone">
-                🗑️ Drag a unit here to sell
-            </div>
+            <div id="sell-zone">🗑️ Drag a unit here to sell</div>
         </section>
 
         <button id="ready-btn">✅ READY FOR BATTLE</button>
-        <div id="waiting-msg" style="display: none; font-size: 1.2rem; color: #ff79c6; font-weight: bold; margin-top: 15px;">Waiting for opponent to finish drafting...</div>
+        <div id="waiting-msg" style="display: none; font-size: 1.2rem; color: #ff79c6; font-weight: bold; margin-top: 15px;">Waiting for opponent...</div>
+
+        <!-- NEW: Abandon button to escape a saved game -->
+        <button onclick="abandonGame()" style="background-color: #ff5555; font-size: 0.9rem; margin-top: 30px; padding: 10px 20px;">🚪 Abandon Match</button>
     </div>
 
-    <!-- ========================================== -->
     <!-- BATTLE PHASE -->
-    <!-- ========================================== -->
     <div id="battle-phase" style="display: none;">
         <div class="arena">
             <section id="arena-player">
@@ -92,6 +85,7 @@
         <div id="battle-log">The battle begins...</div>
         <button id="next-round-btn" style="display: none;">Next Round ➔</button>
         <div id="waiting-next-msg" style="display: none; color: #ff79c6; font-weight: bold; margin-top: 15px;">Waiting for opponent...</div>
+        <button id="return-menu-btn" style="display: none; background-color: #8be9fd;" onclick="abandonGame()">Return to Menu</button>
     </div>
 </main>
 
