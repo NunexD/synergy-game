@@ -34,6 +34,16 @@ header { margin-bottom: 20px; }
 section { margin-bottom: 20px; }
 h2 { margin-bottom: 10px; }
 
+/* Menu Styling */
+.menu-box {
+    background-color: var(--card-bg);
+    border: 2px solid var(--card-border);
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 400px;
+    margin: 20px auto;
+}
+
 .slot-container {
     display: flex;
     justify-content: center;
@@ -102,9 +112,9 @@ h2 { margin-bottom: 10px; }
 button {
     background-color: var(--btn-color);
     color: #1e1e24;
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: bold;
-    padding: 15px 40px;
+    padding: 12px 25px;
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -112,16 +122,11 @@ button {
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
 }
 button:active { transform: scale(0.95); }
-button:hover { background-color: var(--btn-hover); }
+button:hover { filter: brightness(1.1); }
+button:disabled { background-color: #555 !important; cursor: not-allowed; color: #888; transform: none; }
 
-/* NEW: Reroll Button Styling */
-#reroll-btn {
-    background-color: #8be9fd;
-    font-size: 1.1rem;
-    padding: 10px 25px;
-    margin-top: 5px;
-}
-#reroll-btn:hover { background-color: #6edbf0; }
+#reroll-btn { background-color: #8be9fd; font-size: 1rem; padding: 10px 20px; margin-top: 5px; }
+#ready-btn { font-size: 1.5rem; padding: 15px 40px; margin-top: 10px; }
 #next-round-btn { background-color: var(--accent-color); margin-top: 15px; }
 
 #battle-log {
@@ -145,5 +150,4 @@ button:hover { background-color: var(--btn-hover); }
 
 .anim-damage { animation: shake 0.4s ease-in-out; border-color: #ff5555 !important; background-color: #3a1e1e !important; }
 @keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-5px); } 100% { transform: translateX(0); } }
-
 .anim-dead { opacity: 0.3; filter: grayscale(100%); border-color: #333 !important; }

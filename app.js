@@ -1,10 +1,19 @@
-// --- GAME STATE ---
+// --- GAME STATE & NETWORKING FLAGS ---
 let playerStats = { coins: 10, lives: 5, round: 1 };
 let shopSlots = [null, null, null];
 let teamSlots = [null, null, null];
 let benchSlots = [null, null, null, null, null];
 let enemySlots = [null, null, null];
 let draggedItem = null;
+
+let isMultiplayer = false;
+let peer = null;
+let conn = null;
+let localReady = false;
+let remoteReady = false;
+let localNextReady = false;
+let remoteNextReady = false;
+let remoteTeamData = null;
 
 const unitDatabase = [
     { id: "knight", name: "Knight", icon: "🛡️", hp: 5, dmg: 2, cost: 3 },
@@ -16,22 +25,105 @@ const unitDatabase = [
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 function getRandomInt(max) { return Math.floor(Math.random() * max); }
 
-// --- DRAFT & ECONOMY LOGIC ---
+// ==========================================
+// MAIN MENU & MULTIPLAYER LOBBY LOGIC
+// ==========================================
+
+function startSingleplayer() {
+    isMultiplayer = false;
+    document.getElementById("enemy-title").innerText = "Enemy AI";
+    enterDraftPhase();
+}
+
+function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 6).toUpperCase();
+}
+
+function hostGame() {
+    const roomCode = generateRoomCode();
+    document.getElementById("host-info").style.display = "block";
+    document.getElementById("room-code").innerText = "Connecting...";
+
+    peer = new Peer(roomCode);
+    peer.on('open', (id) => { document.getElementById("room-code").innerText = id; });
+    peer.on('connection', (connection) => {
+        conn = connection;
+        setupConnectionHandlers();
+        conn.on('open', () => {
+            conn.send({ type: 'START_GAME' });
+            isMultiplayer = true;
+            document.getElementById("enemy-title").innerText = "Rival Player";
+            enterDraftPhase();
+        });
+    });
+}
+
+function joinGame() {
+    const roomCode = document.getElementById("join-code-input").value.toUpperCase();
+    if (!roomCode) { alert("Please enter a room code."); return; }
+
+    peer = new Peer();
+    peer.on('open', () => {
+        conn = peer.connect(roomCode);
+        setupConnectionHandlers();
+    });
+}
+
+function setupConnectionHandlers() {
+    conn.on('data', (data) => {
+        if (data.type === 'START_GAME') {
+            isMultiplayer = true;
+            document.getElementById("enemy-title").innerText = "Rival Player";
+            enterDraftPhase();
+        }
+        else if (data.type === 'READY_UP') {
+            remoteReady = true;
+            remoteTeamData = data.team;
+            checkMatchStart(); // Try to start if local is already ready
+        }
+        else if (data.type === 'NEXT_ROUND') {
+            remoteNextReady = true;
+            checkNextRoundStart();
+        }
+    });
+}
+
+function enterDraftPhase() {
+    document.getElementById("main-menu").style.display = "none";
+    document.getElementById("draft-phase").style.display = "block";
+    document.getElementById("top-stats").style.display = "block";
+
+    resetSyncFlags();
+    updateStatsUI();
+    rollShop();
+    renderAllDraft();
+}
+
+function resetSyncFlags() {
+    localReady = false;
+    remoteReady = false;
+    localNextReady = false;
+    remoteNextReady = false;
+    remoteTeamData = null;
+
+    document.getElementById("ready-btn").style.display = "inline-block";
+    document.getElementById("waiting-msg").style.display = "none";
+    document.getElementById("next-round-btn").style.display = "none";
+    document.getElementById("waiting-next-msg").style.display = "none";
+}
+
+// ==========================================
+// DRAFT, ECONOMY, & MERGE LOGIC
+// ==========================================
+
 function rollShop() {
-    for (let i = 0; i < 3; i++) {
-        shopSlots[i] = { ...unitDatabase[getRandomInt(unitDatabase.length)], level: 1 };
-    }
+    for (let i = 0; i < 3; i++) { shopSlots[i] = { ...unitDatabase[getRandomInt(unitDatabase.length)], level: 1 }; }
     renderShop();
 }
 
 function rerollShop() {
-    if (playerStats.coins >= 1) {
-        playerStats.coins -= 1;
-        rollShop();
-        updateStatsUI();
-    } else {
-        alert("Not enough coins to reroll!");
-    }
+    if (playerStats.coins >= 1) { playerStats.coins -= 1; rollShop(); updateStatsUI(); }
+    else { alert("Not enough coins to reroll!"); }
 }
 
 function buyUnit(shopIndex) {
@@ -42,14 +134,9 @@ function buyUnit(shopIndex) {
     let emptyBenchIndex = benchSlots.findIndex(s => s === null);
     let emptyTeamIndex = teamSlots.findIndex(s => s === null);
 
-    if (emptyBenchIndex !== -1) {
-        benchSlots[emptyBenchIndex] = unit;
-    } else if (emptyTeamIndex !== -1) {
-        teamSlots[emptyTeamIndex] = unit;
-    } else {
-        alert("Team and Bench are completely full! Sell something first.");
-        return;
-    }
+    if (emptyBenchIndex !== -1) { benchSlots[emptyBenchIndex] = unit; }
+    else if (emptyTeamIndex !== -1) { teamSlots[emptyTeamIndex] = unit; }
+    else { alert("Team and Bench are completely full! Sell something first."); return; }
 
     playerStats.coins -= unit.cost;
     shopSlots[shopIndex] = null;
@@ -89,12 +176,7 @@ function checkAndMerge() {
                 let newLevel = level + 1;
                 let statMult = newLevel === 2 ? 2 : 4;
 
-                let upgradedUnit = {
-                    ...baseData,
-                    level: newLevel,
-                    hp: baseData.hp * statMult,
-                    dmg: baseData.dmg * statMult
-                };
+                let upgradedUnit = { ...baseData, level: newLevel, hp: baseData.hp * statMult, dmg: baseData.dmg * statMult };
 
                 if (targetLoc.loc === 'team') teamSlots[targetLoc.index] = upgradedUnit;
                 if (targetLoc.loc === 'bench') benchSlots[targetLoc.index] = upgradedUnit;
@@ -104,26 +186,16 @@ function checkAndMerge() {
             }
         }
     }
-
-    if (didMerge) {
-        checkAndMerge();
-    }
+    if (didMerge) checkAndMerge();
 }
 
-// --- DRAG, DROP LOGIC ---
-function handleDragStart(e, arrayName, index) {
-    draggedItem = { arrayName, index };
-    e.target.classList.add("dragging");
-}
+// ==========================================
+// DRAG & DROP LOGIC
+// ==========================================
 
-function handleDragOver(e) {
-    e.preventDefault();
-    e.currentTarget.classList.add("drag-over");
-}
-
-function handleDragLeave(e) {
-    e.currentTarget.classList.remove("drag-over");
-}
+function handleDragStart(e, arrayName, index) { draggedItem = { arrayName, index }; e.target.classList.add("dragging"); }
+function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add("drag-over"); }
+function handleDragLeave(e) { e.currentTarget.classList.remove("drag-over"); }
 
 function handleDropSwap(e, dropArrayName, dropIndex) {
     e.preventDefault();
@@ -138,7 +210,6 @@ function handleDropSwap(e, dropArrayName, dropIndex) {
 
         sourceArray[draggedItem.index] = targetUnit;
         targetArray[dropIndex] = sourceUnit;
-
         renderAllDraft();
     }
 }
@@ -159,100 +230,65 @@ function handleDropSell(e) {
     }
 }
 
-// --- RENDERING UI ---
-function renderShop() {
-    const container = document.getElementById("shop-container");
-    container.innerHTML = "";
-    shopSlots.forEach((unit, i) => {
-        const el = document.createElement("div");
-        if (unit) {
-            el.className = "card-slot";
-            el.innerHTML = `
-                <div class="level-badge">⭐</div>
-                <div style="font-size: 2.5rem;">${unit.icon}</div>
-                <strong>${unit.name}</strong>
-                <div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
-                <div style="font-size: 0.8rem; color: var(--btn-color);">🪙${unit.cost}</div>
-            `;
-            el.onclick = () => buyUnit(i);
-        } else { el.className = "card-slot empty"; el.innerText = "Sold"; }
-        container.appendChild(el);
-    });
-}
+// ==========================================
+// SYNC LOGIC & BATTLE ENGINE
+// ==========================================
 
-function createDraggableSlotHTML(unit, arrayName, index) {
-    const el = document.createElement("div");
-    if (unit) {
-        el.className = "card-slot";
-        el.draggable = true;
-        const stars = "⭐".repeat(unit.level);
-        el.innerHTML = `
-            <div class="level-badge">${stars}</div>
-            <div style="font-size: 2.5rem;">${unit.icon}</div>
-            <strong>${unit.name}</strong>
-            <div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
-        `;
-        el.addEventListener("dragstart", (e) => handleDragStart(e, arrayName, index));
-        el.addEventListener("dragend", (e) => e.target.classList.remove("dragging"));
-    } else { el.className = "card-slot empty"; el.innerText = "Empty"; }
-
-    el.addEventListener("dragover", handleDragOver);
-    el.addEventListener("dragleave", handleDragLeave);
-    el.addEventListener("drop", (e) => handleDropSwap(e, arrayName, index));
-    return el;
-}
-
-function renderAllDraft() {
-    const tContainer = document.getElementById("team-container");
-    tContainer.innerHTML = "";
-    teamSlots.forEach((u, i) => tContainer.appendChild(createDraggableSlotHTML(u, 'team', i)));
-
-    const bContainer = document.getElementById("bench-container");
-    bContainer.innerHTML = "";
-    benchSlots.forEach((u, i) => bContainer.appendChild(createDraggableSlotHTML(u, 'bench', i)));
-}
-
-const sellZone = document.getElementById("sell-zone");
-sellZone.addEventListener("dragover", handleDragOver);
-sellZone.addEventListener("dragleave", handleDragLeave);
-sellZone.addEventListener("drop", handleDropSell);
-
-// --- BATTLE PHASE LOGIC ---
-async function startBattle() {
+function handleReadyButton() {
     if (!teamSlots.some(u => u !== null)) { alert("Draft at least one unit onto your Team!"); return; }
 
+    if (!isMultiplayer) {
+        // Singleplayer - start instantly
+        startBattle();
+    } else {
+        // Multiplayer - Sync Readiness
+        localReady = true;
+        document.getElementById("ready-btn").style.display = "none";
+        document.getElementById("waiting-msg").style.display = "block";
+
+        conn.send({ type: 'READY_UP', team: teamSlots });
+        checkMatchStart();
+    }
+}
+
+function checkMatchStart() {
+    if (localReady && remoteReady) {
+        document.getElementById("waiting-msg").style.display = "none";
+        enemySlots = JSON.parse(JSON.stringify(remoteTeamData)); // Copy Rival's Team
+        startBattle();
+    }
+}
+
+async function startBattle() {
     document.getElementById("draft-phase").style.display = "none";
     document.getElementById("battle-phase").style.display = "block";
-    document.getElementById("next-round-btn").style.display = "none";
     document.getElementById("battle-log").innerHTML = `Round ${playerStats.round} begins!`;
 
-    // UPDATED SCALING: Gradual introduction of higher level enemies
-    for (let i = 0; i < 3; i++) {
-        let baseUnit = unitDatabase[getRandomInt(unitDatabase.length)];
-        let enemyLevel = 1;
+    // 1. Generate Enemy Team IF Singleplayer
+    if (!isMultiplayer) {
+        for (let i = 0; i < 3; i++) {
+            let baseUnit = unitDatabase[getRandomInt(unitDatabase.length)];
+            let enemyLevel = 1;
 
-        if (playerStats.round >= 3 && i === 0) enemyLevel = 2; // Introduce 1 Lvl 2 on Round 3
-        if (playerStats.round >= 4 && i <= 1) enemyLevel = 2;  // Two Lvl 2s on Round 4
-        if (playerStats.round >= 5) enemyLevel = 2;            // All Lvl 2 on Round 5
-        if (playerStats.round >= 7 && i === 0) enemyLevel = 3; // Introduce 1 Lvl 3 on Round 7
-        if (playerStats.round >= 8) enemyLevel = 3;            // Hardcore late game
+            if (playerStats.round >= 3 && i === 0) enemyLevel = 2;
+            if (playerStats.round >= 4 && i <= 1) enemyLevel = 2;
+            if (playerStats.round >= 5) enemyLevel = 2;
+            if (playerStats.round >= 7 && i === 0) enemyLevel = 3;
+            if (playerStats.round >= 8) enemyLevel = 3;
 
-        let statMult = enemyLevel === 2 ? 2 : (enemyLevel === 3 ? 4 : 1);
-
-        enemySlots[i] = {
-            ...baseUnit,
-            level: enemyLevel,
-            hp: baseUnit.hp * statMult,
-            dmg: baseUnit.dmg * statMult
-        };
+            let statMult = enemyLevel === 2 ? 2 : (enemyLevel === 3 ? 4 : 1);
+            enemySlots[i] = { ...baseUnit, level: enemyLevel, hp: baseUnit.hp * statMult, dmg: baseUnit.dmg * statMult };
+        }
     }
 
+    // 2. Clone Teams for Combat Simulation
     let combatTeam = JSON.parse(JSON.stringify(teamSlots));
     let combatEnemies = JSON.parse(JSON.stringify(enemySlots));
 
     renderArena(combatTeam, combatEnemies);
     await sleep(1000);
 
+    // 3. Combat Loop (Deterministic)
     let pIndex = 2;
     let eIndex = 0;
 
@@ -281,6 +317,7 @@ async function startBattle() {
         await sleep(400);
     }
 
+    // 4. Resolve Combat
     const pAlive = combatTeam.some(u => u && u.hp > 0);
     const log = document.getElementById("battle-log");
 
@@ -301,14 +338,85 @@ async function startBattle() {
     }
 }
 
+// ==========================================
+// NEXT ROUND SYNC LOGIC
+// ==========================================
+
+function handleNextRoundButton() {
+    if (!isMultiplayer) {
+        returnToDraft();
+    } else {
+        localNextReady = true;
+        document.getElementById("next-round-btn").style.display = "none";
+        document.getElementById("waiting-next-msg").style.display = "block";
+
+        conn.send({ type: 'NEXT_ROUND' });
+        checkNextRoundStart();
+    }
+}
+
+function checkNextRoundStart() {
+    if (localNextReady && remoteNextReady) {
+        document.getElementById("waiting-next-msg").style.display = "none";
+        returnToDraft();
+    }
+}
+
 function returnToDraft() {
     playerStats.round += 1;
-    playerStats.coins += 5; // UPDATED: More base income per round
+    playerStats.coins += 5;
     updateStatsUI();
     document.getElementById("battle-phase").style.display = "none";
     document.getElementById("draft-phase").style.display = "block";
+
+    resetSyncFlags();
     rollShop();
     renderAllDraft();
+}
+
+// ==========================================
+// RENDERING UI
+// ==========================================
+
+function renderShop() {
+    const container = document.getElementById("shop-container");
+    container.innerHTML = "";
+    shopSlots.forEach((unit, i) => {
+        const el = document.createElement("div");
+        if (unit) {
+            el.className = "card-slot";
+            el.innerHTML = `<div class="level-badge">⭐</div><div style="font-size: 2.5rem;">${unit.icon}</div><strong>${unit.name}</strong><div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div><div style="font-size: 0.8rem; color: var(--btn-color);">🪙${unit.cost}</div>`;
+            el.onclick = () => buyUnit(i);
+        } else { el.className = "card-slot empty"; el.innerText = "Sold"; }
+        container.appendChild(el);
+    });
+}
+
+function createDraggableSlotHTML(unit, arrayName, index) {
+    const el = document.createElement("div");
+    if (unit) {
+        el.className = "card-slot";
+        el.draggable = true;
+        const stars = "⭐".repeat(unit.level);
+        el.innerHTML = `<div class="level-badge">${stars}</div><div style="font-size: 2.5rem;">${unit.icon}</div><strong>${unit.name}</strong><div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>`;
+        el.addEventListener("dragstart", (e) => handleDragStart(e, arrayName, index));
+        el.addEventListener("dragend", (e) => e.target.classList.remove("dragging"));
+    } else { el.className = "card-slot empty"; el.innerText = "Empty"; }
+
+    el.addEventListener("dragover", handleDragOver);
+    el.addEventListener("dragleave", handleDragLeave);
+    el.addEventListener("drop", (e) => handleDropSwap(e, arrayName, index));
+    return el;
+}
+
+function renderAllDraft() {
+    const tContainer = document.getElementById("team-container");
+    tContainer.innerHTML = "";
+    teamSlots.forEach((u, i) => tContainer.appendChild(createDraggableSlotHTML(u, 'team', i)));
+
+    const bContainer = document.getElementById("bench-container");
+    bContainer.innerHTML = "";
+    benchSlots.forEach((u, i) => bContainer.appendChild(createDraggableSlotHTML(u, 'bench', i)));
 }
 
 function renderArena(pTeam, eTeam) {
@@ -345,9 +453,11 @@ function updateStatsUI() {
     document.getElementById("round-display").innerText = playerStats.round;
 }
 
+const sellZone = document.getElementById("sell-zone");
+sellZone.addEventListener("dragover", handleDragOver);
+sellZone.addEventListener("dragleave", handleDragLeave);
+sellZone.addEventListener("drop", handleDropSell);
+
 document.getElementById("reroll-btn").onclick = rerollShop;
-document.getElementById("battle-btn").onclick = startBattle;
-document.getElementById("next-round-btn").onclick = returnToDraft;
-updateStatsUI();
-rollShop();
-renderAllDraft();
+document.getElementById("ready-btn").onclick = handleReadyButton;
+document.getElementById("next-round-btn").onclick = handleNextRoundButton;

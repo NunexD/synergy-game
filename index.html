@@ -5,24 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Synergy Draft Game</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Pull in the PeerJS Library for Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
 <header>
     <h1>Synergy Draft</h1>
-    <div class="stats">
+    <div class="stats" id="top-stats" style="display: none;">
         🪙 Coins: <span id="coins">10</span> | ❤️ Lives: <span id="lives">5</span> | 🏆 Round: <span id="round-display">1</span>
     </div>
 </header>
 
 <main>
     <!-- ========================================== -->
+    <!-- MAIN MENU PHASE -->
+    <!-- ========================================== -->
+    <div id="main-menu">
+        <h2>Welcome to the Arena</h2>
+
+        <div class="menu-box">
+            <h3>Singleplayer</h3>
+            <button onclick="startSingleplayer()">Play vs AI</button>
+        </div>
+
+        <div class="menu-box">
+            <h3>Multiplayer (Play with a Friend)</h3>
+            <button onclick="hostGame()" style="background-color: #8be9fd; color: #1e1e24;">Host Game</button>
+            <div id="host-info" style="display: none; margin: 15px 0;">
+                Your Room Code: <strong id="room-code" style="font-size: 1.5rem; color: #ff79c6;">Loading...</strong>
+                <p style="font-size: 0.9rem; color: #888;">Send this code to your friend!</p>
+            </div>
+
+            <hr style="border-color: #44475a; margin: 20px 0;">
+
+            <input type="text" id="join-code-input" placeholder="Enter Room Code" style="padding: 10px; font-size: 1.1rem; border-radius: 5px; border: 1px solid #44475a; background: #1e1e24; color: #fff; width: 60%; margin-bottom: 10px;">
+            <br>
+            <button onclick="joinGame()" style="background-color: #ffb86c; color: #1e1e24;">Join Game</button>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
     <!-- DRAFT PHASE -->
     <!-- ========================================== -->
-    <div id="draft-phase">
+    <div id="draft-phase" style="display: none;">
         <section id="shop-section">
             <h2>The Shop (Click to Buy)</h2>
             <div id="shop-container" class="slot-container"></div>
-            <!-- NEW: Reroll Button -->
             <button id="reroll-btn">🎲 Reroll Shop (🪙1)</button>
         </section>
 
@@ -39,7 +67,8 @@
             </div>
         </section>
 
-        <button id="battle-btn">⚔️ TO THE ARENA ⚔️</button>
+        <button id="ready-btn">✅ READY FOR BATTLE</button>
+        <div id="waiting-msg" style="display: none; font-size: 1.2rem; color: #ff79c6; font-weight: bold; margin-top: 15px;">Waiting for opponent to finish drafting...</div>
     </div>
 
     <!-- ========================================== -->
@@ -47,7 +76,6 @@
     <!-- ========================================== -->
     <div id="battle-phase" style="display: none;">
         <div class="arena">
-            <!-- Player Side (Left) -->
             <section id="arena-player">
                 <h2>Your Team</h2>
                 <div id="combat-player-container" class="slot-container"></div>
@@ -55,15 +83,15 @@
 
             <div class="vs-badge">VS</div>
 
-            <!-- Enemy Side (Right) -->
             <section id="arena-enemy">
-                <h2>Enemy Team</h2>
+                <h2 id="enemy-title">Enemy Team</h2>
                 <div id="combat-enemy-container" class="slot-container"></div>
             </section>
         </div>
 
         <div id="battle-log">The battle begins...</div>
         <button id="next-round-btn" style="display: none;">Next Round ➔</button>
+        <div id="waiting-next-msg" style="display: none; color: #ff79c6; font-weight: bold; margin-top: 15px;">Waiting for opponent...</div>
     </div>
 </main>
 
