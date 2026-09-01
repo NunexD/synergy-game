@@ -1,11 +1,11 @@
 // --- GAME STATE ---
-let playerStats = { coins: 10, lives: 5 };
+let playerStats = { coins: 10, lives: 5, round: 1 };
 let shopSlots = [null, null, null];
 let teamSlots = [null, null, null];
 let enemySlots = [null, null, null];
-let inCombat = false; // Prevents selling while fighting
 
-// --- UNIT DATABASE ---
+let draggedIndex = null; // Remembers which unit you are dragging
+
 const unitDatabase = [
     { id: "knight", name: "Knight", icon: "🛡️", hp: 5, dmg: 2, cost: 3 },
     { id: "goblin", name: "Goblin", icon: "👺", hp: 2, dmg: 4, cost: 3 },
@@ -13,14 +13,10 @@ const unitDatabase = [
     { id: "wolf", name: "Dire Wolf", icon: "🐺", hp: 4, dmg: 3, cost: 3 }
 ];
 
-// --- UTILITIES ---
-function getRandomInt(max) {
-    return Math.floor(Math.random() * max);
-}
-
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+function getRandomInt(max) { return Math.floor(Math.random() * max); }
 
-// --- DRAFTING & ECONOMY LOGIC ---
+// --- DRAFT PHASE LOGIC ---
 function rollShop() {
     for (let i = 0; i < 3; i++) {
         shopSlots[i] = { ...unitDatabase[getRandomInt(unitDatabase.length)] };
@@ -29,233 +25,239 @@ function rollShop() {
 }
 
 function buyUnit(shopIndex) {
-    if (inCombat) return; // Lock shop during battle
-
     const unit = shopSlots[shopIndex];
     if (!unit) return;
-
-    if (playerStats.coins < unit.cost) {
-        alert("Not enough coins!");
-        return;
-    }
+    if (playerStats.coins < unit.cost) { alert("Not enough coins!"); return; }
 
     const emptyTeamIndex = teamSlots.findIndex(slot => slot === null);
-    if (emptyTeamIndex === -1) {
-        alert("Your team is full! Sell a unit first.");
-        return;
-    }
+    if (emptyTeamIndex === -1) { alert("Team full! Drag a unit to the trash to sell."); return; }
 
     playerStats.coins -= unit.cost;
     teamSlots[emptyTeamIndex] = unit;
     shopSlots[shopIndex] = null;
-
     updateStatsUI();
     renderShop();
-    renderTeam();
+    renderTeamDraft();
 }
 
-function sellUnit(teamIndex) {
-    if (inCombat) return; // Lock selling during battle
-
-    const unit = teamSlots[teamIndex];
-    if (!unit) return;
-
-    // Remove unit and refund 1 coin
-    teamSlots[teamIndex] = null;
-    playerStats.coins += 1;
-
-    updateStatsUI();
-    renderTeam();
+// --- DRAG AND DROP LOGIC ---
+function handleDragStart(e, index) {
+    draggedIndex = index;
+    e.target.classList.add("dragging");
 }
 
-// --- ASYNC BATTLE LOGIC ---
-async function executeBattle() {
-    const btn = document.getElementById("battle-btn");
-    const log = document.getElementById("battle-log");
+function handleDragOver(e) {
+    e.preventDefault(); // Required to allow dropping
+    e.currentTarget.classList.add("drag-over");
+}
 
-    if (!teamSlots.some(u => u !== null)) {
-        alert("Draft at least one unit first!");
-        return;
+function handleDragLeave(e) {
+    e.currentTarget.classList.remove("drag-over");
+}
+
+function handleDropSwap(e, dropIndex) {
+    e.preventDefault();
+    e.currentTarget.classList.remove("drag-over");
+
+    if (draggedIndex !== null && draggedIndex !== dropIndex) {
+        // Swap the elements in the array
+        const temp = teamSlots[draggedIndex];
+        teamSlots[draggedIndex] = teamSlots[dropIndex];
+        teamSlots[dropIndex] = temp;
+        renderTeamDraft();
     }
+}
 
-    // 1. Lock the UI
-    inCombat = true;
-    btn.disabled = true;
-    log.innerHTML = "Battle starting...";
+function handleDropSell(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove("drag-over");
 
-    // 2. Generate a FULL random enemy team (No empty slots!)
+    if (draggedIndex !== null && teamSlots[draggedIndex]) {
+        teamSlots[draggedIndex] = null;
+        playerStats.coins += 1;
+        updateStatsUI();
+        renderTeamDraft();
+    }
+}
+
+// --- RENDERING DRAFT UI ---
+function renderShop() {
+    const container = document.getElementById("shop-container");
+    container.innerHTML = "";
+    shopSlots.forEach((unit, i) => {
+        const el = document.createElement("div");
+        if (unit) {
+            el.className = "card-slot";
+            el.innerHTML = `
+                <div style="font-size: 2.5rem;">${unit.icon}</div>
+                <strong>${unit.name}</strong>
+                <div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
+                <div style="font-size: 0.8rem; color: var(--btn-color);">🪙${unit.cost}</div>
+            `;
+            el.onclick = () => buyUnit(i);
+        } else {
+            el.className = "card-slot empty"; el.innerText = "Sold";
+        }
+        container.appendChild(el);
+    });
+}
+
+function renderTeamDraft() {
+    const container = document.getElementById("team-container");
+    container.innerHTML = "";
+    teamSlots.forEach((unit, i) => {
+        const el = document.createElement("div");
+
+        if (unit) {
+            el.className = "card-slot";
+            el.draggable = true;
+            el.innerHTML = `
+                <div style="font-size: 2.5rem;">${unit.icon}</div>
+                <strong>${unit.name}</strong>
+                <div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
+            `;
+            // Attach Drag Events for swapping
+            el.addEventListener("dragstart", (e) => handleDragStart(e, i));
+            el.addEventListener("dragend", (e) => e.target.classList.remove("dragging"));
+        } else {
+            el.className = "card-slot empty"; el.innerText = "Empty";
+        }
+
+        // Always allow dropping on a slot (empty or full)
+        el.addEventListener("dragover", handleDragOver);
+        el.addEventListener("dragleave", handleDragLeave);
+        el.addEventListener("drop", (e) => handleDropSwap(e, i));
+
+        container.appendChild(el);
+    });
+}
+
+// Wire up the Sell Zone
+const sellZone = document.getElementById("sell-zone");
+sellZone.addEventListener("dragover", handleDragOver);
+sellZone.addEventListener("dragleave", handleDragLeave);
+sellZone.addEventListener("drop", handleDropSell);
+
+
+// --- BATTLE PHASE LOGIC ---
+async function startBattle() {
+    if (!teamSlots.some(u => u !== null)) { alert("Draft at least one unit!"); return; }
+
+    // Toggle UI visibility
+    document.getElementById("draft-phase").style.display = "none";
+    document.getElementById("battle-phase").style.display = "block";
+    document.getElementById("next-round-btn").style.display = "none";
+    document.getElementById("battle-log").innerHTML = `Round ${playerStats.round} begins!`;
+
+    // Generate Enemy Team
     for (let i = 0; i < 3; i++) {
         enemySlots[i] = { ...unitDatabase[getRandomInt(unitDatabase.length)] };
     }
-    renderEnemies();
-    await sleep(1000);
 
+    // Create combat clones
     let combatTeam = JSON.parse(JSON.stringify(teamSlots));
     let combatEnemies = JSON.parse(JSON.stringify(enemySlots));
 
-    let pIndex = 0;
-    let eIndex = 0;
+    renderArena(combatTeam, combatEnemies);
+    await sleep(1000);
 
-    // 3. Continuous Combat: Fight until one entire team is dead
+    let pIndex = 0; // Left-most index (visually closest to center due to row-reverse)
+    let eIndex = 0; // Left-most index (visually closest to center)
+
     while (pIndex < 3 && eIndex < 3) {
         let pUnit = combatTeam[pIndex];
         let eUnit = combatEnemies[eIndex];
 
-        // Skip to the next slot if this unit is dead or empty
-        if (!pUnit || pUnit.hp <= 0) {
-            pIndex++;
-            continue;
-        }
-        if (!eUnit || eUnit.hp <= 0) {
-            eIndex++;
-            continue;
-        }
+        if (!pUnit || pUnit.hp <= 0) { pIndex++; continue; }
+        if (!eUnit || eUnit.hp <= 0) { eIndex++; continue; }
 
-        let pEl = document.getElementById(`team-${pIndex}`);
-        let eEl = document.getElementById(`enemy-${eIndex}`);
+        let pEl = document.getElementById(`combat-p-${pIndex}`);
+        let eEl = document.getElementById(`combat-e-${eIndex}`);
 
-        // Attack Animation
+        // Attack Animation (Player lunges Right, Enemy lunges Left)
         if(pEl) pEl.classList.add("anim-attack");
-        if(eEl) eEl.classList.add("anim-attack");
+        if(eEl) eEl.classList.add("anim-attack-reverse");
         await sleep(300);
 
-        // Deal Damage
         pUnit.hp -= eUnit.dmg;
         eUnit.hp -= pUnit.dmg;
+        renderArena(combatTeam, combatEnemies);
 
-        // Re-render
-        renderTeam(combatTeam);
-        renderEnemies(combatEnemies);
-
-        // Damage Shake Animation
-        pEl = document.getElementById(`team-${pIndex}`);
-        eEl = document.getElementById(`enemy-${eIndex}`);
+        pEl = document.getElementById(`combat-p-${pIndex}`);
+        eEl = document.getElementById(`combat-e-${eIndex}`);
         if(pEl) pEl.classList.add("anim-damage");
         if(eEl) eEl.classList.add("anim-damage");
-
         await sleep(400);
     }
 
-    // 4. Determine Winner (No Draws Allowed! If everyone dies, you lose)
-    let pAlive = combatTeam.some(u => u && u.hp > 0);
+    // Resolve Round
+    const pAlive = combatTeam.some(u => u && u.hp > 0);
+    const log = document.getElementById("battle-log");
 
     if (pAlive) {
         playerStats.coins += 4;
-        log.innerHTML = `<span style="color: #50fa7b;">Victory!</span> You wiped out the enemy. +4 Coins!`;
+        log.innerHTML = `<span style="color: #50fa7b;">Victory!</span> +4 Coins!`;
     } else {
         playerStats.lives -= 1;
-        log.innerHTML = `<span style="color: #ff5555;">Defeat!</span> Your team was wiped out. -1 Life.`;
+        log.innerHTML = `<span style="color: #ff5555;">Defeat!</span> -1 Life.`;
     }
 
     updateStatsUI();
 
-    // 5. Cleanup
     if (playerStats.lives <= 0) {
-        log.innerHTML += `<br><span style="color: #ff5555; font-weight: bold;">GAME OVER!</span> Refresh page to restart.`;
+        log.innerHTML += `<br><b>GAME OVER!</b> Refresh to try again.`;
     } else {
-        await sleep(2500);
-        enemySlots = [null, null, null];
-        renderEnemies();
-        renderTeam(); // Restores original fully-healed team UI
-        rollShop();
-        btn.disabled = false;
-        inCombat = false;
-        log.innerHTML = "Draft your team, then click Battle to fight!";
+        document.getElementById("next-round-btn").style.display = "inline-block";
     }
 }
 
-// --- UI UPDATES ---
+function returnToDraft() {
+    playerStats.round += 1;
+    playerStats.coins += 2; // Basic round income
+    updateStatsUI();
+
+    // Toggle UI visibility back
+    document.getElementById("battle-phase").style.display = "none";
+    document.getElementById("draft-phase").style.display = "block";
+
+    rollShop(); // Fresh shop for the new round
+    renderTeamDraft(); // Reset your team visually back to full health
+}
+
+function renderArena(pTeam, eTeam) {
+    const pContainer = document.getElementById("combat-player-container");
+    const eContainer = document.getElementById("combat-enemy-container");
+    pContainer.innerHTML = ""; eContainer.innerHTML = "";
+
+    pTeam.forEach((unit, i) => {
+        const el = document.createElement("div");
+        el.id = `combat-p-${i}`;
+        if (unit) {
+            el.className = `card-slot ${unit.hp <= 0 ? 'anim-dead' : ''}`;
+            el.innerHTML = `<div style="font-size: 2.5rem;">${unit.icon}</div><strong>${unit.name}</strong><div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>`;
+        } else { el.className = "card-slot empty"; el.innerText = "Empty"; }
+        pContainer.appendChild(el);
+    });
+
+    eTeam.forEach((unit, i) => {
+        const el = document.createElement("div");
+        el.id = `combat-e-${i}`;
+        if (unit) {
+            el.className = `card-slot ${unit.hp <= 0 ? 'anim-dead' : ''}`;
+            el.innerHTML = `<div style="font-size: 2.5rem;">${unit.icon}</div><strong>${unit.name}</strong><div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>`;
+        } else { el.className = "card-slot empty"; el.innerText = "Empty"; }
+        eContainer.appendChild(el);
+    });
+}
+
 function updateStatsUI() {
     document.getElementById("coins").innerText = playerStats.coins;
     document.getElementById("lives").innerText = playerStats.lives;
 }
 
-function renderShop() {
-    const container = document.getElementById("shop-container");
-    container.innerHTML = "";
-    for (let i = 0; i < shopSlots.length; i++) {
-        const unit = shopSlots[i];
-        const el = document.createElement("div");
-        if (unit) {
-            el.className = "card-slot";
-            el.innerHTML = `
-                <div style="font-size: 2.5rem;">${unit.icon}</div>
-                <strong style="margin-top: 5px;">${unit.name}</strong>
-                <div style="margin-top: auto;">❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
-                <div style="font-size: 0.8rem; margin-top: 5px; color: var(--btn-color);">Cost: 🪙${unit.cost}</div>
-            `;
-            el.onclick = () => buyUnit(i);
-        } else {
-            el.className = "card-slot empty";
-            el.innerText = "Sold";
-        }
-        container.appendChild(el);
-    }
-}
-
-function renderTeam(dataToRender = teamSlots) {
-    const container = document.getElementById("team-container");
-    container.innerHTML = "";
-    for (let i = 0; i < dataToRender.length; i++) {
-        const unit = dataToRender[i];
-        const el = document.createElement("div");
-        el.id = `team-${i}`;
-
-        if (unit) {
-            el.className = "card-slot";
-            if (unit.hp <= 0) el.classList.add("anim-dead");
-
-            // Replaced default stats display with a conditional to show "Sell" hint if not in combat
-            const sellHintHTML = !inCombat && unit.hp > 0
-                ? `<div style="font-size: 0.8rem; margin-top: 5px; color: #ff5555;">Click to Sell (🪙1)</div>`
-                : '';
-
-            el.innerHTML = `
-                <div style="font-size: 2.5rem;">${unit.icon}</div>
-                <strong style="margin-top: 5px;">${unit.name}</strong>
-                <div style="margin-top: auto;">❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
-                ${sellHintHTML}
-            `;
-
-            // Allow selling only if not in combat and the unit is actually part of your real team
-            if (!inCombat) {
-                el.onclick = () => sellUnit(i);
-            }
-        } else {
-            el.className = "card-slot empty";
-            el.innerText = "Empty Slot";
-        }
-        container.appendChild(el);
-    }
-}
-
-function renderEnemies(dataToRender = enemySlots) {
-    const container = document.getElementById("enemy-container");
-    container.innerHTML = "";
-    for (let i = 0; i < dataToRender.length; i++) {
-        const unit = dataToRender[i];
-        const el = document.createElement("div");
-        el.id = `enemy-${i}`;
-
-        if (unit) {
-            el.className = "card-slot";
-            if (unit.hp <= 0) el.classList.add("anim-dead");
-            el.innerHTML = `
-                <div style="font-size: 2.5rem;">${unit.icon}</div>
-                <strong style="margin-top: 5px;">${unit.name}</strong>
-                <div style="margin-top: auto;">❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
-            `;
-        } else {
-            el.className = "card-slot empty";
-            el.innerText = "No enemy";
-        }
-        container.appendChild(el);
-    }
-}
-
 // --- INITIALIZATION ---
-document.getElementById("battle-btn").onclick = executeBattle;
+document.getElementById("battle-btn").onclick = startBattle;
+document.getElementById("next-round-btn").onclick = returnToDraft;
 updateStatsUI();
-renderTeam();
-renderEnemies();
 rollShop();
+renderTeamDraft();

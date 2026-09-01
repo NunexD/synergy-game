@@ -15,33 +15,52 @@
 </header>
 
 <main>
-    <section id="shop-section">
-        <h2>The Shop</h2>
-        <div id="shop-container" class="slot-container">
-            <!-- Shop slots injected by JS -->
+    <!-- ========================================== -->
+    <!-- DRAFT PHASE: Shop, Team Management, & Sell -->
+    <!-- ========================================== -->
+    <div id="draft-phase">
+        <section id="shop-section">
+            <h2>The Shop (Click to Buy)</h2>
+            <div id="shop-container" class="slot-container"></div>
+        </section>
+
+        <section id="management-section">
+            <h2>Your Team (Drag to rearrange)</h2>
+            <p style="font-size: 0.9rem; color: #888; margin-top: -10px;">Frontline is on the RIGHT. They attack first!</p>
+            <div id="team-container" class="slot-container"></div>
+
+            <!-- The Sell Zone -->
+            <div id="sell-zone">
+                🗑️ Drag a unit here to sell for 🪙1
+            </div>
+        </section>
+
+        <button id="battle-btn">⚔️ TO THE ARENA ⚔️</button>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- BATTLE PHASE: Left vs Right Combat         -->
+    <!-- ========================================== -->
+    <div id="battle-phase" style="display: none;">
+        <div class="arena">
+            <!-- Player Side (Left) -->
+            <section id="arena-player">
+                <h2>Your Team</h2>
+                <!-- row-reverse makes the first unit face the center -->
+                <div id="combat-player-container" class="slot-container reverse-row"></div>
+            </section>
+
+            <div class="vs-badge">VS</div>
+
+            <!-- Enemy Side (Right) -->
+            <section id="arena-enemy">
+                <h2>Enemy Team</h2>
+                <div id="combat-enemy-container" class="slot-container"></div>
+            </section>
         </div>
-    </section>
 
-    <section id="enemy-section">
-        <h2>Enemy Team</h2>
-        <div id="enemy-container" class="slot-container">
-            <div class="card-slot empty">Waiting for battle...</div>
-            <div class="card-slot empty">Waiting for battle...</div>
-            <div class="card-slot empty">Waiting for battle...</div>
-        </div>
-    </section>
-
-    <section id="team-section">
-        <h2>Your Team</h2>
-        <div id="team-container" class="slot-container">
-            <!-- Team slots injected by JS -->
-        </div>
-    </section>
-
-    <button id="battle-btn">⚔️ BATTLE ⚔️</button>
-
-    <div id="battle-log">
-        Draft your team, then click Battle to fight!
+        <div id="battle-log">The battle begins...</div>
+        <button id="next-round-btn" style="display: none;">Next Round ➔</button>
     </div>
 </main>
 
