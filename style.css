@@ -7,6 +7,7 @@
     --btn-color: #50fa7b;
     --btn-hover: #40c963;
     --sell-color: #ff5555;
+    --lvl-color: #f1fa8c;
 }
 
 body {
@@ -18,9 +19,7 @@ body {
     padding: 20px;
 }
 
-header {
-    margin-bottom: 20px;
-}
+header { margin-bottom: 20px; }
 
 .stats {
     font-size: 1.2rem;
@@ -32,9 +31,9 @@ header {
     border: 2px solid var(--card-border);
 }
 
-section { margin-bottom: 30px; }
+section { margin-bottom: 20px; }
+h2 { margin-bottom: 10px; }
 
-/* Flexbox Containers */
 .slot-container {
     display: flex;
     justify-content: center;
@@ -42,17 +41,12 @@ section { margin-bottom: 30px; }
     flex-wrap: wrap;
 }
 
-/* Reverse row for player combat side so index 0 faces the middle */
-.reverse-row {
-    flex-direction: row-reverse;
-}
-
 .card-slot {
     background-color: var(--card-bg);
     border: 2px solid var(--card-border);
     border-radius: 10px;
     width: 120px;
-    height: 160px;
+    height: 170px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -65,31 +59,21 @@ section { margin-bottom: 30px; }
     position: relative;
 }
 
-/* Dragging visual states */
-.card-slot[draggable="true"]:hover {
-    border-color: var(--accent-color);
-    transform: translateY(-5px);
-}
-.card-slot.dragging {
-    opacity: 0.5;
-    border: 2px dashed var(--accent-color);
-}
-.card-slot.drag-over {
-    border-color: var(--btn-color);
-    transform: scale(1.05);
+.level-badge {
+    font-size: 1rem;
+    color: var(--lvl-color);
+    font-weight: bold;
+    margin-bottom: 5px;
+    letter-spacing: 2px;
 }
 
-.card-slot.empty {
-    border-style: dashed;
-    color: #888;
-    cursor: default;
-}
+.card-slot[draggable="true"]:hover { border-color: var(--accent-color); transform: translateY(-5px); }
+.card-slot.dragging { opacity: 0.5; border: 2px dashed var(--accent-color); }
+.card-slot.drag-over { border-color: var(--btn-color); transform: scale(1.05); }
+.card-slot.empty { border-style: dashed; color: #888; cursor: default; }
 
-#shop-container .card-slot:not(.empty):hover {
-    border-color: var(--btn-color);
-}
+#shop-container .card-slot:not(.empty):hover { border-color: var(--btn-color); }
 
-/* Sell Zone Styling */
 #sell-zone {
     margin: 20px auto;
     padding: 15px;
@@ -100,11 +84,8 @@ section { margin-bottom: 30px; }
     font-weight: bold;
     transition: background-color 0.2s;
 }
-#sell-zone.drag-over {
-    background-color: rgba(255, 85, 85, 0.2);
-}
+#sell-zone.drag-over { background-color: rgba(255, 85, 85, 0.2); }
 
-/* Arena Layout */
 .arena {
     display: flex;
     justify-content: center;
@@ -115,14 +96,8 @@ section { margin-bottom: 30px; }
     background-color: rgba(0,0,0,0.2);
     border-radius: 12px;
 }
-.vs-badge {
-    font-size: 2rem;
-    font-weight: bold;
-    color: var(--accent-color);
-    padding: 0 20px;
-}
+.vs-badge { font-size: 2rem; font-weight: bold; color: var(--accent-color); padding: 0 20px; }
 
-/* Buttons */
 button {
     background-color: var(--btn-color);
     color: #1e1e24;
@@ -153,29 +128,12 @@ button:hover { background-color: var(--btn-hover); }
 
 /* Animations */
 .anim-attack { animation: lunge 0.3s ease-in-out; z-index: 10; }
-@keyframes lunge {
-    0% { transform: translateX(0); }
-    50% { transform: translateX(25px) scale(1.1); }
-    100% { transform: translateX(0); }
-}
+@keyframes lunge { 0% { transform: translateX(0); } 50% { transform: translateX(25px) scale(1.1); } 100% { transform: translateX(0); } }
 
 .anim-attack-reverse { animation: lunge-reverse 0.3s ease-in-out; z-index: 10; }
-@keyframes lunge-reverse {
-    0% { transform: translateX(0); }
-    50% { transform: translateX(-25px) scale(1.1); }
-    100% { transform: translateX(0); }
-}
+@keyframes lunge-reverse { 0% { transform: translateX(0); } 50% { transform: translateX(-25px) scale(1.1); } 100% { transform: translateX(0); } }
 
-.anim-damage {
-    animation: shake 0.4s ease-in-out;
-    border-color: #ff5555 !important;
-    background-color: #3a1e1e !important;
-}
-@keyframes shake {
-    0% { transform: translateX(0); }
-    25% { transform: translateX(-5px); }
-    50% { transform: translateX(5px); }
-    75% { transform: translateX(-5px); }
-    100% { transform: translateX(0); }
-}
+.anim-damage { animation: shake 0.4s ease-in-out; border-color: #ff5555 !important; background-color: #3a1e1e !important; }
+@keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-5px); } 100% { transform: translateX(0); } }
+
 .anim-dead { opacity: 0.3; filter: grayscale(100%); border-color: #333 !important; }

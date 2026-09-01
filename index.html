@@ -10,13 +10,13 @@
 <header>
     <h1>Synergy Draft</h1>
     <div class="stats">
-        🪙 Coins: <span id="coins">10</span> | ❤️ Lives: <span id="lives">5</span>
+        🪙 Coins: <span id="coins">10</span> | ❤️ Lives: <span id="lives">5</span> | 🏆 Round: <span id="round-display">1</span>
     </div>
 </header>
 
 <main>
     <!-- ========================================== -->
-    <!-- DRAFT PHASE: Shop, Team Management, & Sell -->
+    <!-- DRAFT PHASE -->
     <!-- ========================================== -->
     <div id="draft-phase">
         <section id="shop-section">
@@ -26,12 +26,14 @@
 
         <section id="management-section">
             <h2>Your Team (Drag to rearrange)</h2>
-            <p style="font-size: 0.9rem; color: #888; margin-top: -10px;">Frontline is on the RIGHT. They attack first!</p>
+            <p style="font-size: 0.9rem; color: #888; margin-top: -10px;">The RIGHT-MOST unit is your Frontline!</p>
             <div id="team-container" class="slot-container"></div>
 
-            <!-- The Sell Zone -->
+            <h2>Your Bench</h2>
+            <div id="bench-container" class="slot-container"></div>
+
             <div id="sell-zone">
-                🗑️ Drag a unit here to sell for 🪙1
+                🗑️ Drag a unit here to sell
             </div>
         </section>
 
@@ -39,15 +41,14 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- BATTLE PHASE: Left vs Right Combat         -->
+    <!-- BATTLE PHASE -->
     <!-- ========================================== -->
     <div id="battle-phase" style="display: none;">
         <div class="arena">
             <!-- Player Side (Left) -->
             <section id="arena-player">
                 <h2>Your Team</h2>
-                <!-- row-reverse makes the first unit face the center -->
-                <div id="combat-player-container" class="slot-container reverse-row"></div>
+                <div id="combat-player-container" class="slot-container"></div>
             </section>
 
             <div class="vs-badge">VS</div>

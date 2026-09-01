@@ -2,9 +2,9 @@
 let playerStats = { coins: 10, lives: 5, round: 1 };
 let shopSlots = [null, null, null];
 let teamSlots = [null, null, null];
+let benchSlots = [null, null, null, null, null]; // New Inventory Bench
 let enemySlots = [null, null, null];
-
-let draggedIndex = null; // Remembers which unit you are dragging
+let draggedItem = null; // { arrayName: 'team' | 'bench', index: 0 }
 
 const unitDatabase = [
     { id: "knight", name: "Knight", icon: "🛡️", hp: 5, dmg: 2, cost: 3 },
@@ -16,10 +16,10 @@ const unitDatabase = [
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 function getRandomInt(max) { return Math.floor(Math.random() * max); }
 
-// --- DRAFT PHASE LOGIC ---
+// --- DRAFT & ECONOMY LOGIC ---
 function rollShop() {
     for (let i = 0; i < 3; i++) {
-        shopSlots[i] = { ...unitDatabase[getRandomInt(unitDatabase.length)] };
+        shopSlots[i] = { ...unitDatabase[getRandomInt(unitDatabase.length)], level: 1 };
     }
     renderShop();
 }
@@ -29,25 +29,96 @@ function buyUnit(shopIndex) {
     if (!unit) return;
     if (playerStats.coins < unit.cost) { alert("Not enough coins!"); return; }
 
-    const emptyTeamIndex = teamSlots.findIndex(slot => slot === null);
-    if (emptyTeamIndex === -1) { alert("Team full! Drag a unit to the trash to sell."); return; }
+    // Prioritize bench first, then team
+    let emptyBenchIndex = benchSlots.findIndex(s => s === null);
+    let emptyTeamIndex = teamSlots.findIndex(s => s === null);
+
+    if (emptyBenchIndex !== -1) {
+        benchSlots[emptyBenchIndex] = unit;
+    } else if (emptyTeamIndex !== -1) {
+        teamSlots[emptyTeamIndex] = unit;
+    } else {
+        alert("Team and Bench are completely full! Sell something first.");
+        return;
+    }
 
     playerStats.coins -= unit.cost;
-    teamSlots[emptyTeamIndex] = unit;
     shopSlots[shopIndex] = null;
+
+    checkAndMerge(); // TFT Auto-Merge System
     updateStatsUI();
     renderShop();
-    renderTeamDraft();
+    renderAllDraft();
 }
 
-// --- DRAG AND DROP LOGIC ---
-function handleDragStart(e, index) {
-    draggedIndex = index;
+// --- TFT AUTO-MERGE SYSTEM ---
+function checkAndMerge() {
+    // Gather all active units across both the team and bench arrays
+    let allActiveSlots = [
+        ...teamSlots.map((u, i) => ({ unit: u, loc: 'team', index: i })),
+        ...benchSlots.map((u, i) => ({ unit: u, loc: 'bench', index: i }))
+    ].filter(s => s.unit !== null);
+
+    let didMerge = false;
+
+    // Check for 3 of the same unit at Level 1, then Level 2
+    for (let level = 1; level <= 2; level++) {
+        let groups = {};
+        allActiveSlots.filter(s => s.unit.level === level).forEach(s => {
+            if (!groups[s.unit.id]) groups[s.unit.id] = [];
+            groups[s.unit.id].push(s);
+        });
+
+        for (let id in groups) {
+            if (groups[id].length >= 3) {
+                // We found 3 identical units!
+                let toMerge = groups[id].slice(0, 3);
+
+                // Keep the upgraded unit on the board if possible, otherwise on the bench
+                let targetLoc = toMerge.find(s => s.loc === 'team') || toMerge[0];
+
+                // Delete the three base units
+                toMerge.forEach(s => {
+                    if (s.loc === 'team') teamSlots[s.index] = null;
+                    if (s.loc === 'bench') benchSlots[s.index] = null;
+                });
+
+                // Create the newly upgraded Level 2 or Level 3 unit
+                let baseData = unitDatabase.find(u => u.id === id);
+                let newLevel = level + 1;
+                let statMult = newLevel === 2 ? 2 : 4; // Lvl 2 = 2x stats, Lvl 3 = 4x stats
+
+                let upgradedUnit = {
+                    ...baseData,
+                    level: newLevel,
+                    hp: baseData.hp * statMult,
+                    dmg: baseData.dmg * statMult
+                };
+
+                // Place the newly upgraded unit back into the arrays
+                if (targetLoc.loc === 'team') teamSlots[targetLoc.index] = upgradedUnit;
+                if (targetLoc.loc === 'bench') benchSlots[targetLoc.index] = upgradedUnit;
+
+                didMerge = true;
+                break; // Stop and re-run to prevent index collision
+            }
+        }
+    }
+
+    // If a merge happened, run it again just in case we accidentally created three Level 2s!
+    if (didMerge) {
+        checkAndMerge();
+    }
+}
+
+// --- DRAG, DROP LOGIC ---
+function handleDragStart(e, arrayName, index) {
+    draggedItem = { arrayName, index };
     e.target.classList.add("dragging");
 }
 
 function handleDragOver(e) {
-    e.preventDefault(); // Required to allow dropping
+    e.preventDefault();
     e.currentTarget.classList.add("drag-over");
 }
 
@@ -55,32 +126,43 @@ function handleDragLeave(e) {
     e.currentTarget.classList.remove("drag-over");
 }
 
-function handleDropSwap(e, dropIndex) {
+function handleDropSwap(e, dropArrayName, dropIndex) {
     e.preventDefault();
     e.currentTarget.classList.remove("drag-over");
 
-    if (draggedIndex !== null && draggedIndex !== dropIndex) {
-        // Swap the elements in the array
-        const temp = teamSlots[draggedIndex];
-        teamSlots[draggedIndex] = teamSlots[dropIndex];
-        teamSlots[dropIndex] = temp;
-        renderTeamDraft();
+    if (draggedItem) {
+        let sourceArray = draggedItem.arrayName === 'team' ? teamSlots : benchSlots;
+        let targetArray = dropArrayName === 'team' ? teamSlots : benchSlots;
+
+        // Swap them
+        let sourceUnit = sourceArray[draggedItem.index];
+        let targetUnit = targetArray[dropIndex];
+
+        sourceArray[draggedItem.index] = targetUnit;
+        targetArray[dropIndex] = sourceUnit;
+
+        renderAllDraft();
     }
 }
 
 function handleDropSell(e) {
     e.preventDefault();
     e.currentTarget.classList.remove("drag-over");
+    if (draggedItem) {
+        let sourceArray = draggedItem.arrayName === 'team' ? teamSlots : benchSlots;
+        let unitToSell = sourceArray[draggedItem.index];
 
-    if (draggedIndex !== null && teamSlots[draggedIndex]) {
-        teamSlots[draggedIndex] = null;
-        playerStats.coins += 1;
-        updateStatsUI();
-        renderTeamDraft();
+        if (unitToSell) {
+            sourceArray[draggedItem.index] = null;
+            // Refunds: Lvl 1 = 1 coin, Lvl 2 = 3 coins, Lvl 3 = 9 coins
+            playerStats.coins += Math.pow(3, unitToSell.level - 1);
+            updateStatsUI();
+            renderAllDraft();
+        }
     }
 }
 
-// --- RENDERING DRAFT UI ---
+// --- RENDERING UI ---
 function renderShop() {
     const container = document.getElementById("shop-container");
     container.innerHTML = "";
@@ -89,92 +171,103 @@ function renderShop() {
         if (unit) {
             el.className = "card-slot";
             el.innerHTML = `
+                <div class="level-badge">⭐</div>
                 <div style="font-size: 2.5rem;">${unit.icon}</div>
                 <strong>${unit.name}</strong>
                 <div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
                 <div style="font-size: 0.8rem; color: var(--btn-color);">🪙${unit.cost}</div>
             `;
             el.onclick = () => buyUnit(i);
-        } else {
-            el.className = "card-slot empty"; el.innerText = "Sold";
-        }
+        } else { el.className = "card-slot empty"; el.innerText = "Sold"; }
         container.appendChild(el);
     });
 }
 
-function renderTeamDraft() {
-    const container = document.getElementById("team-container");
-    container.innerHTML = "";
-    teamSlots.forEach((unit, i) => {
-        const el = document.createElement("div");
+function createDraggableSlotHTML(unit, arrayName, index) {
+    const el = document.createElement("div");
+    if (unit) {
+        el.className = "card-slot";
+        el.draggable = true;
+        const stars = "⭐".repeat(unit.level);
+        el.innerHTML = `
+            <div class="level-badge">${stars}</div>
+            <div style="font-size: 2.5rem;">${unit.icon}</div>
+            <strong>${unit.name}</strong>
+            <div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
+        `;
+        el.addEventListener("dragstart", (e) => handleDragStart(e, arrayName, index));
+        el.addEventListener("dragend", (e) => e.target.classList.remove("dragging"));
+    } else { el.className = "card-slot empty"; el.innerText = "Empty"; }
 
-        if (unit) {
-            el.className = "card-slot";
-            el.draggable = true;
-            el.innerHTML = `
-                <div style="font-size: 2.5rem;">${unit.icon}</div>
-                <strong>${unit.name}</strong>
-                <div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>
-            `;
-            // Attach Drag Events for swapping
-            el.addEventListener("dragstart", (e) => handleDragStart(e, i));
-            el.addEventListener("dragend", (e) => e.target.classList.remove("dragging"));
-        } else {
-            el.className = "card-slot empty"; el.innerText = "Empty";
-        }
-
-        // Always allow dropping on a slot (empty or full)
-        el.addEventListener("dragover", handleDragOver);
-        el.addEventListener("dragleave", handleDragLeave);
-        el.addEventListener("drop", (e) => handleDropSwap(e, i));
-
-        container.appendChild(el);
-    });
+    el.addEventListener("dragover", handleDragOver);
+    el.addEventListener("dragleave", handleDragLeave);
+    el.addEventListener("drop", (e) => handleDropSwap(e, arrayName, index));
+    return el;
 }
 
-// Wire up the Sell Zone
+function renderAllDraft() {
+    const tContainer = document.getElementById("team-container");
+    tContainer.innerHTML = "";
+    teamSlots.forEach((u, i) => tContainer.appendChild(createDraggableSlotHTML(u, 'team', i)));
+
+    const bContainer = document.getElementById("bench-container");
+    bContainer.innerHTML = "";
+    benchSlots.forEach((u, i) => bContainer.appendChild(createDraggableSlotHTML(u, 'bench', i)));
+}
+
 const sellZone = document.getElementById("sell-zone");
 sellZone.addEventListener("dragover", handleDragOver);
 sellZone.addEventListener("dragleave", handleDragLeave);
 sellZone.addEventListener("drop", handleDropSell);
 
-
 // --- BATTLE PHASE LOGIC ---
 async function startBattle() {
-    if (!teamSlots.some(u => u !== null)) { alert("Draft at least one unit!"); return; }
+    if (!teamSlots.some(u => u !== null)) { alert("Draft at least one unit onto your Team!"); return; }
 
-    // Toggle UI visibility
     document.getElementById("draft-phase").style.display = "none";
     document.getElementById("battle-phase").style.display = "block";
     document.getElementById("next-round-btn").style.display = "none";
     document.getElementById("battle-log").innerHTML = `Round ${playerStats.round} begins!`;
 
-    // Generate Enemy Team
+    // Enemy Scaling Logic
+    let enemyLevel = 1;
+    if (playerStats.round >= 3) enemyLevel = 2;
+    if (playerStats.round >= 6) enemyLevel = 3;
+    let statMult = enemyLevel === 2 ? 2 : (enemyLevel === 3 ? 4 : 1);
+
     for (let i = 0; i < 3; i++) {
-        enemySlots[i] = { ...unitDatabase[getRandomInt(unitDatabase.length)] };
+        let baseUnit = unitDatabase[getRandomInt(unitDatabase.length)];
+        enemySlots[i] = {
+            ...baseUnit,
+            level: enemyLevel,
+            hp: baseUnit.hp * statMult,
+            dmg: baseUnit.dmg * statMult
+        };
     }
 
-    // Create combat clones
     let combatTeam = JSON.parse(JSON.stringify(teamSlots));
     let combatEnemies = JSON.parse(JSON.stringify(enemySlots));
 
     renderArena(combatTeam, combatEnemies);
     await sleep(1000);
 
-    let pIndex = 0; // Left-most index (visually closest to center due to row-reverse)
-    let eIndex = 0; // Left-most index (visually closest to center)
+    // FRONT LINE LOGIC: 
+    // Player Array goes [0], [1], [2]. Visually, [2] touches the VS badge.
+    // Enemy Array goes [0], [1], [2]. Visually, [0] touches the VS badge.
+    let pIndex = 2; // Right-most player slot
+    let eIndex = 0; // Left-most enemy slot
 
-    while (pIndex < 3 && eIndex < 3) {
+    while (pIndex >= 0 && eIndex < 3) {
         let pUnit = combatTeam[pIndex];
         let eUnit = combatEnemies[eIndex];
 
-        if (!pUnit || pUnit.hp <= 0) { pIndex++; continue; }
+        // Move inward if a slot is dead or empty
+        if (!pUnit || pUnit.hp <= 0) { pIndex--; continue; }
         if (!eUnit || eUnit.hp <= 0) { eIndex++; continue; }
 
         let pEl = document.getElementById(`combat-p-${pIndex}`);
         let eEl = document.getElementById(`combat-e-${eIndex}`);
 
-        // Attack Animation (Player lunges Right, Enemy lunges Left)
         if(pEl) pEl.classList.add("anim-attack");
         if(eEl) eEl.classList.add("anim-attack-reverse");
         await sleep(300);
@@ -190,7 +283,6 @@ async function startBattle() {
         await sleep(400);
     }
 
-    // Resolve Round
     const pAlive = combatTeam.some(u => u && u.hp > 0);
     const log = document.getElementById("battle-log");
 
@@ -213,15 +305,12 @@ async function startBattle() {
 
 function returnToDraft() {
     playerStats.round += 1;
-    playerStats.coins += 2; // Basic round income
+    playerStats.coins += 2;
     updateStatsUI();
-
-    // Toggle UI visibility back
     document.getElementById("battle-phase").style.display = "none";
     document.getElementById("draft-phase").style.display = "block";
-
-    rollShop(); // Fresh shop for the new round
-    renderTeamDraft(); // Reset your team visually back to full health
+    rollShop();
+    renderAllDraft();
 }
 
 function renderArena(pTeam, eTeam) {
@@ -233,8 +322,9 @@ function renderArena(pTeam, eTeam) {
         const el = document.createElement("div");
         el.id = `combat-p-${i}`;
         if (unit) {
+            const stars = "⭐".repeat(unit.level);
             el.className = `card-slot ${unit.hp <= 0 ? 'anim-dead' : ''}`;
-            el.innerHTML = `<div style="font-size: 2.5rem;">${unit.icon}</div><strong>${unit.name}</strong><div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>`;
+            el.innerHTML = `<div class="level-badge">${stars}</div><div style="font-size: 2.5rem;">${unit.icon}</div><strong>${unit.name}</strong><div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>`;
         } else { el.className = "card-slot empty"; el.innerText = "Empty"; }
         pContainer.appendChild(el);
     });
@@ -243,8 +333,9 @@ function renderArena(pTeam, eTeam) {
         const el = document.createElement("div");
         el.id = `combat-e-${i}`;
         if (unit) {
+            const stars = "⭐".repeat(unit.level);
             el.className = `card-slot ${unit.hp <= 0 ? 'anim-dead' : ''}`;
-            el.innerHTML = `<div style="font-size: 2.5rem;">${unit.icon}</div><strong>${unit.name}</strong><div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>`;
+            el.innerHTML = `<div class="level-badge">${stars}</div><div style="font-size: 2.5rem;">${unit.icon}</div><strong>${unit.name}</strong><div>❤️ ${unit.hp} | ⚔️ ${unit.dmg}</div>`;
         } else { el.className = "card-slot empty"; el.innerText = "Empty"; }
         eContainer.appendChild(el);
     });
@@ -253,11 +344,11 @@ function renderArena(pTeam, eTeam) {
 function updateStatsUI() {
     document.getElementById("coins").innerText = playerStats.coins;
     document.getElementById("lives").innerText = playerStats.lives;
+    document.getElementById("round-display").innerText = playerStats.round;
 }
 
-// --- INITIALIZATION ---
 document.getElementById("battle-btn").onclick = startBattle;
 document.getElementById("next-round-btn").onclick = returnToDraft;
 updateStatsUI();
 rollShop();
-renderTeamDraft();
+renderAllDraft();
