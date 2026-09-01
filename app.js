@@ -1,3 +1,4 @@
+// --- GAME STATE & NETWORKING FLAGS ---
 let playerStats = { coins: 10, lives: 5, round: 1 };
 let shopSlots = [null, null, null];
 let teamSlots = [null, null, null];
@@ -33,20 +34,20 @@ function getRandomInt(max) { return Math.floor(Math.random() * max); }
 
 function saveGame() {
     const saveState = {
-        playerStats, shopSlots, teamSlots, benchSlots, isMultiplayer, roomCode, isHost
+        playerStats, shopSlots, teamSlots, benchSlots, isMultiplayer, roomCode, isHost,
+        localReady, remoteReady, remoteTeamData // Saved to fix refresh desync
     };
     localStorage.setItem("synergySave", JSON.stringify(saveState));
 }
 
 function abandonGame() {
     localStorage.removeItem("synergySave");
-    location.reload(); // Refresh the page to reset everything
+    location.reload();
 }
 
 function initGame() {
     const savedData = localStorage.getItem("synergySave");
     if (savedData) {
-        // Restore from Save
         const state = JSON.parse(savedData);
         playerStats = state.playerStats;
         shopSlots = state.shopSlots;
@@ -56,12 +57,24 @@ function initGame() {
         roomCode = state.roomCode;
         isHost = state.isHost;
 
+        // Restore networking flags
+        localReady = state.localReady || false;
+        remoteReady = state.remoteReady || false;
+        remoteTeamData = state.remoteTeamData || null;
+
         document.getElementById("enemy-title").innerText = isMultiplayer ? "Rival Player" : "Enemy AI";
 
         if (isMultiplayer) {
             reconnectMultiplayer();
         }
-        enterDraftPhase(false); // False means don't reroll the shop on load
+
+        enterDraftPhase(false);
+
+        // Lock UI if the player refreshed after clicking Ready
+        if (localReady) {
+            document.getElementById("ready-btn").style.display = "none";
+            document.getElementById("waiting-msg").style.display = "block";
+        }
     }
 }
 
@@ -72,7 +85,7 @@ function initGame() {
 function startNewSingleplayer() {
     isMultiplayer = false;
     document.getElementById("enemy-title").innerText = "Enemy AI";
-    enterDraftPhase(true); // True means roll a fresh shop
+    enterDraftPhase(true);
 }
 
 function generateRoomCode() { return Math.random().toString(36).substring(2, 6).toUpperCase(); }
@@ -84,7 +97,7 @@ function hostGame() {
     document.getElementById("host-info").style.display = "block";
     document.getElementById("room-code").innerText = roomCode;
 
-    peer = new Peer(roomCode); // Host uses the room code as their ID
+    peer = new Peer(roomCode);
     peer.on('connection', (connection) => {
         conn = connection;
         setupConnectionHandlers();
@@ -110,19 +123,26 @@ function joinGame() {
 }
 
 function reconnectMultiplayer() {
+    peer = new Peer(isHost ? roomCode : undefined);
+
+    const onConnectionOpen = () => {
+        setupConnectionHandlers();
+        // The Handshake: tell opponent we are back and ready!
+        if (localReady) {
+            conn.send({ type: 'READY_UP', team: teamSlots });
+        }
+        checkMatchStart();
+    };
+
     if (isHost) {
-        // Re-establish as host
-        peer = new Peer(roomCode);
         peer.on('connection', (connection) => {
             conn = connection;
-            setupConnectionHandlers();
+            conn.on('open', onConnectionOpen);
         });
     } else {
-        // Re-establish as client
-        peer = new Peer();
         peer.on('open', () => {
             conn = peer.connect(roomCode);
-            setupConnectionHandlers();
+            conn.on('open', onConnectionOpen);
         });
     }
 }
@@ -157,8 +177,8 @@ function enterDraftPhase(freshRoll = true) {
     document.getElementById("ready-btn").style.display = "inline-block";
     document.getElementById("waiting-msg").style.display = "none";
 
-    if (freshRoll) rollShop(); // Only roll if it's a new game or round
-    updateUI(); // Visually update and save
+    if (freshRoll) rollShop();
+    updateUI();
 }
 
 // ==========================================
@@ -268,6 +288,7 @@ function handleReadyButton() {
         localReady = true;
         document.getElementById("ready-btn").style.display = "none";
         document.getElementById("waiting-msg").style.display = "block";
+        saveGame(); // Save state immediately in case of crash while waiting
         if (conn && conn.open) conn.send({ type: 'READY_UP', team: teamSlots });
         checkMatchStart();
     }
@@ -331,13 +352,13 @@ async function startBattle() {
         document.getElementById("battle-log").innerHTML = `<span style="color: #ff5555;">Defeat!</span> -1 Life.`;
     }
 
-    saveGame(); // Save before showing Game Over screen
+    saveGame();
     updateStatsUI();
 
     if (playerStats.lives <= 0) {
         document.getElementById("battle-log").innerHTML += `<br><b>GAME OVER!</b>`;
         document.getElementById("return-menu-btn").style.display = "inline-block";
-        localStorage.removeItem("synergySave"); // Clear save if dead
+        localStorage.removeItem("synergySave");
     } else {
         document.getElementById("next-round-btn").style.display = "inline-block";
     }
@@ -368,7 +389,7 @@ function returnToDraft() {
     document.getElementById("battle-phase").style.display = "none";
     document.getElementById("next-round-btn").style.display = "none";
 
-    enterDraftPhase(true); // Roll new shop and save
+    enterDraftPhase(true);
 }
 
 // ==========================================
@@ -441,5 +462,5 @@ document.getElementById("reroll-btn").onclick = rerollShop;
 document.getElementById("ready-btn").onclick = handleReadyButton;
 document.getElementById("next-round-btn").onclick = handleNextRoundButton;
 
-// NEW: Boot up sequence
+// BOOT UP SEQUENCE
 initGame();
