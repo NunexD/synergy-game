@@ -1,0 +1,110 @@
+:root {
+    --bg-color: #1e1e24;
+    --text-color: #f8f8f2;
+    --card-bg: #2d2d34;
+    --card-border: #44475a;
+    --accent-color: #ff79c6;
+    --btn-color: #50fa7b;
+    --btn-hover: #40c963;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    text-align: center;
+    margin: 0;
+    padding: 20px;
+}
+
+header {
+    margin-bottom: 30px;
+}
+
+.stats {
+    font-size: 1.2rem;
+    font-weight: bold;
+    background-color: var(--card-bg);
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 2px solid var(--card-border);
+}
+
+section {
+    margin-bottom: 40px;
+}
+
+.slot-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.card-slot {
+    background-color: var(--card-bg);
+    border: 2px solid var(--card-border);
+    border-radius: 10px;
+    width: 120px;
+    height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    user-select: none;
+}
+
+.card-slot:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent-color);
+}
+
+.card-slot.empty {
+    border-style: dashed;
+    color: #888;
+    cursor: default;
+}
+
+.card-slot.empty:hover {
+    transform: none;
+    border-color: var(--card-border);
+}
+
+#battle-btn {
+    background-color: var(--btn-color);
+    color: #1e1e24;
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 15px 40px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+#battle-btn:active {
+    transform: scale(0.95);
+}
+
+#battle-btn:hover {
+    background-color: var(--btn-hover);
+}
+
+#battle-log {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 15px;
+    border-radius: 8px;
+    min-height: 50px;
+    font-family: monospace;
+    color: #bd93f9;
+}
