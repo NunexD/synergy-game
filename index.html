@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synergy Draft Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+    <h1>Synergy Draft</h1>
+    <div class="stats">
+        🪙 Coins: <span id="coins">10</span> | ❤️ Lives: <span id="lives">5</span>
+    </div>
+</header>
+
+<main>
+    <section id="shop-section">
+        <h2>The Shop</h2>
+        <div id="shop-container" class="slot-container">
+            <div class="card-slot">Shop Unit 1</div>
+            <div class="card-slot">Shop Unit 2</div>
+            <div class="card-slot">Shop Unit 3</div>
+        </div>
+    </section>
+
+    <section id="team-section">
+        <h2>Your Team</h2>
+        <div id="team-container" class="slot-container">
+            <div class="card-slot empty">Empty Slot</div>
+            <div class="card-slot empty">Empty Slot</div>
+            <div class="card-slot empty">Empty Slot</div>
+        </div>
+    </section>
+
+    <button id="battle-btn">⚔️ BATTLE ⚔️</button>
+
+    <div id="battle-log">
+        Battle results will appear here...
+    </div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
